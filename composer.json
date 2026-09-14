@@ -1,0 +1,22 @@
+{
+  "name": "joogopay/sdk",
+  "description": "Merchant open API SDK (Ed25519 / RFC 9421 signing, X25519 sealed box body encryption)",
+  "type": "library",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/joogopay/sdk-php",
+  "keywords": ["payment", "payout", "merchant-api"],
+  "authors": [{ "name": "JooGoPay", "email": "support@joogopay.com" }],
+  "support": { "issues": "https://github.com/joogopay/sdk-php/issues", "email": "support@joogopay.com" },
+  "require": {
+    "php": ">=8.2",
+    "ext-sodium": "*",
+    "ext-json": "*",
+    "ext-curl": "*"
+  },
+  "autoload": {
+    "psr-4": { "Joogopay\\Sdk\\": "src/" }
+  },
+  "scripts": {
+    "test": "php tests/run.php"
+  }
+}
