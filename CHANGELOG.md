@@ -2,6 +2,13 @@
 
 Versions follow SemVer. Tags are `vX.Y.Z` on this repository.
 
+## v0.1.1 — 2026-09-14
+
+- Fixed: none of the exception classes could be autoloaded. They all live in one
+  file, which PSR-4 never finds because it resolves a class to a file of the same
+  name, so any thrown exception became a fatal "class not found" instead. The
+  package now ships a classmap entry for that file.
+
 ## v0.1.0 — 2026-09-14
 
 Initial public release.

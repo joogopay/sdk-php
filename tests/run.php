@@ -10,6 +10,7 @@ declare(strict_types=1);
  *   or docker run --rm -v "$PWD":/app -w /app php:8.3-cli php tests/run.php
  */
 
+require __DIR__ . '/autoload.php';
 require __DIR__ . '/../src/Exceptions.php';
 require __DIR__ . '/../src/Protocol.php';
 require __DIR__ . '/../src/Status.php';
