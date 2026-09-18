@@ -886,6 +886,42 @@ test('validation: INR payout conditional requirements', function () use ($transp
     ]]));
 });
 
+
+// Rejecting the key happens before anything is sent, so it must land in the same
+// class as any other pre-send failure; a merchant reading a transport error here
+// would query an order that was never created.
+test('a malformed idempotency key is a RequestException and nothing is sent', function () use ($transport, &$captured, &$nextResponse) {
+    $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
+    $captured = [];
+    $client = makeClient($transport);
+    throws(RequestException::class, fn () => $client->createPayment([
+        'merchantOrderNo' => 'M1', 'currency' => 'BRL', 'amount' => '1.00',
+        'paymentMethod' => ['code' => 'PIX', 'pix' => ['payerName' => 'X']],
+        'webhookUrl' => 'https://m.example.com/w',
+    ], 'my-key-123'), 'malformed idempotency key');
+    eq($captured, [], 'nothing reached the server');
+});
+
+// IDR wallet payouts: the five wallet codes are accepted under their own extra field
+test('validation: IDR wallet payouts', function () use ($transport, &$nextResponse) {
+    $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
+    $client = makeClient($transport);
+    $extra = fn (string $wallet) => ['bankCode' => $wallet, 'accountName' => 'Budi',
+        'email' => 'b@example.com', 'mobile' => '081234567890'];
+    $payout = fn (array $m) => [
+        'merchantOrderNo' => 'M1', 'currency' => 'IDR', 'amount' => '10000',
+        'payoutMethod' => $m, 'webhookUrl' => 'https://m.example.com/w',
+    ];
+
+    foreach ([['ID_DANA', 'idDana', 'DANA'], ['ID_OVO', 'idOvo', 'OVO'], ['ID_GOPAY', 'idGopay', 'GOPAY'],
+        ['ID_LINKAJA', 'idLinkaja', 'LINKAJA'], ['ID_SHOPEEPAY', 'idShopeepay', 'SHOPEEPAY']] as [$code, $field, $wallet]) {
+        $client->createPayout($payout(['code' => $code, $field => $extra($wallet)]));
+    }
+
+    throws(RequestException::class,
+        fn () => $client->createPayout($payout(['code' => 'ID_DANA', 'idOvo' => $extra('OVO')])),
+        'wallet extra under another wallet field');
+});
 // Top-level required fields and formats come from the shared vectors under protocol/testdata/validation;
 // a failure here means PHP disagrees with the protocol, not that the vector is wrong.
 
@@ -930,6 +966,77 @@ test('receipt: blank order number is rejected, surrounding whitespace is trimmed
     makeClient($transport)->getPayoutReceipt('  P202608270001 ');
     eq($captured['url'], 'https://api.example.com/api/v1/payouts/P202608270001/receipt');
 });
+
+test('ARS payout preserves optional nullable addresses and rejects other types', function () use ($transport, &$captured, &$nextResponse, $BODY) {
+    $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
+    $client = makeClient($transport);
+    $extra = ['firstName' => 'Ana', 'lastName' => 'Perez', 'email' => 'ana@example.com', 'phone' => '1123456789', 'documentType' => 'DNI', 'documentNumber' => '30123456', 'accountNo' => '0000003100012345678901', 'accountType' => 'CBU'];
+    $request = fn ($fields) => ['merchantOrderNo' => 'ars-address-001', 'currency' => 'ARS', 'amount' => '1.00', 'webhookUrl' => 'https://merchant.example.com/webhook', 'payoutMethod' => ['code' => 'BANK_TRANSFER', 'bankTransfer' => $fields]];
+    foreach (['CBU', 'CVU'] as $accountType) {
+        $recipient = array_replace($extra, ['accountType' => $accountType]);
+        foreach ([[], ['address' => null], ['address' => ''], ['address' => ' Av Example 123 ']] as $addressFields) {
+            $input = $request(array_replace($recipient, $addressFields));
+            $expected = $input;
+            $client->createPayout($input);
+            [$plaintext] = P::openBodyEnvelope($captured['body'],
+                base64_decode($BODY['platformBodyPublicKeyBase64']),
+                base64_decode($BODY['platformBodyPrivateKeyBase64']));
+            eq(json_decode($plaintext, true), $expected);
+            eq($input, $expected, 'caller input must remain unchanged');
+        }
+        $lastBody = $captured['body'];
+        foreach ([1, false, [], new \stdClass()] as $address) {
+            throws(RequestException::class, fn () => $client->createPayout($request(array_replace($recipient, ['address' => $address]))));
+            eq($captured['body'], $lastBody, 'invalid address must fail before HTTP');
+        }
+        foreach (array_keys($recipient) as $field) {
+            $missing = $recipient;
+            unset($missing[$field]);
+            $invalidValues = [$missing];
+            foreach ([null, '', '  '] as $empty) {
+                $invalidValues[] = array_replace($recipient, [$field => $empty]);
+            }
+            foreach ($invalidValues as $invalid) {
+                throws(RequestException::class, fn () => $client->createPayout($request($invalid)), $field);
+                eq($captured['body'], $lastBody, "{$field} must fail before HTTP");
+            }
+        }
+    }
+});
+
+// Shared USD vectors preserve recipient identifiers and decimal amounts across SDKs.
+$usdWallets = load('methods/001-usd-wallets.json');
+foreach ([$usdWallets['payment'], ...$usdWallets['payouts']] as $request) {
+    $methodField = isset($request['paymentMethod']) ? 'paymentMethod' : 'payoutMethod';
+    $method = $request[$methodField];
+    $branch = array_values(array_diff(array_keys($method), ['code']))[0];
+    test("USD {$methodField} {$method['code']}", function () use ($transport, &$captured, &$nextResponse, $BODY, $request, $methodField, $method, $branch) {
+        $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
+        $client = makeClient($transport);
+        $create = fn (array $value) => $methodField === 'paymentMethod'
+            ? $client->createPayment($value) : $client->createPayout($value);
+        $create($request);
+        [$plaintext] = P::openBodyEnvelope($captured['body'],
+            base64_decode($BODY['platformBodyPublicKeyBase64']),
+            base64_decode($BODY['platformBodyPrivateKeyBase64']));
+        eq(json_decode($plaintext, true), $request);
+        $lastBody = $captured['body'];
+        foreach (array_keys($method[$branch]) as $field) {
+            foreach ([null, '', '  '] as $empty) {
+                $invalid = $request;
+                $invalid[$methodField][$branch][$field] = $empty;
+                throws(RequestException::class, fn () => $create($invalid), $field);
+                eq($captured['body'], $lastBody, "{$field} must fail before HTTP");
+            }
+        }
+        $formats = $request;
+        foreach (array_keys($method[$branch]) as $field) {
+            $formats[$methodField][$branch][$field] = 'format-is-checked-by-gateway';
+        }
+        $create($formats);
+    });
+}
+
 
 echo "\n";
 if ($failed === []) {

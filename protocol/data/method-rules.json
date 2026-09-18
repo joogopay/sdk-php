@@ -4,8 +4,10 @@
     "Extracted from the gateway's payment and payout validators and checked by hand.",
     "An empty codes list means the gateway has no method-code allowlist for that currency; the SDK must not reject on that basis.",
     "required fields are always mandatory; byMethod lists the extra fields a specific method code requires.",
-    "The SDK only checks structure and presence. Format checks (phone-number length, email, IFSC length, ...) stay with the gateway:",
-    "a copy in the SDK would drift from the gateway, and merchants could only get the fix by waiting for an SDK release."
+    "The SDK only checks structure, presence and explicitly listed field types. Format checks (phone-number length, email, IFSC length, ...) stay with the gateway:",
+    "a copy in the SDK would drift from the gateway, and merchants could only get the fix by waiting for an SDK release.",
+    "allowEmpty lists required string fields that may be empty; omission, null and non-string values remain invalid.",
+    "optionalNullableStringsByMethod lists optional string fields for one method code; omission, null and empty strings are accepted, but other non-string values are invalid."
   ],
   "rules": {
     "payment": {
@@ -135,6 +137,17 @@
         "required": [
           "customerName"
         ]
+      },
+      "USD": {
+        "codes": [
+          "CASH_APP"
+        ],
+        "required": [
+          "name",
+          "phone",
+          "email",
+          "ipAddress"
+        ]
       }
     },
     "payout": {
@@ -143,14 +156,16 @@
         "required": [
           "accountNo",
           "accountType",
-          "address",
           "documentNumber",
           "documentType",
           "email",
           "firstName",
           "lastName",
           "phone"
-        ]
+        ],
+        "optionalNullableStringsByMethod": {
+          "BANK_TRANSFER": ["address"]
+        }
       },
       "BDT": {
         "codes": [
@@ -306,6 +321,27 @@
             "bankName"
           ]
         }
+      },
+      "USD": {
+        "codes": [
+          "CASH_APP",
+          "PAYPAL",
+          "CHIME"
+        ],
+        "required": [
+          "name",
+          "phone",
+          "email",
+          "accountNo",
+          "firstName",
+          "lastName",
+          "dateOfBirth",
+          "countryOfResidence",
+          "stateOfResidence",
+          "cardCity",
+          "cardStreet",
+          "cardPostCode"
+        ]
       }
     }
   }

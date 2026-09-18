@@ -33,7 +33,26 @@ final class Client
     /** @var callable():int */
     private $now;
 
-    /** @param array<string,mixed> $config */
+    /**
+     * baseUrl is scheme and host only, https; a path is rejected because the SDK
+     * appends the endpoint path itself.
+     *
+     * merchantPrivateKeyBase64 takes either form of Ed25519 private key: the
+     * 32-byte seed libsodium and OpenSSL hand out, or the 64-byte seed plus
+     * public key.
+     *
+     * platformBodyKeyId names which platform key seals the request body and
+     * travels in the envelope so the gateway knows which private key opens it;
+     * it must name the key given in platformBodyPublicKeyBase64, which is X25519,
+     * not the Ed25519 webhook key.
+     *
+     * platformWebhookPublicKeys maps key id to platform Ed25519 public key and
+     * verifies webhook signatures, the opposite direction. The webhook names its
+     * key id, so this holds every key the platform may currently sign with;
+     * during a rotation that is two. Required even without webhooks.
+     *
+     * @param array<string,mixed> $config
+     */
     public function __construct(array $config)
     {
         $baseUrl = trim((string) ($config['baseUrl'] ?? ''));
@@ -361,7 +380,8 @@ final class Client
         }
 
         $need = array_merge($rule['required'], $rule['byMethod'][$code] ?? []);
-        if ($need === []) {
+        $optionalNullableStrings = $rule['optionalNullableStringsByMethod'][$code] ?? [];
+        if ($need === [] && $optionalNullableStrings === []) {
             return;
         }
         $extra = $present === [] ? [] : ($method[$present[0]] ?? []);
@@ -369,10 +389,22 @@ final class Client
             throw new RequestException('sdk: method extra must be an object: ' . $present[0]);
         }
         foreach ($need as $field) {
+            if (in_array($field, $rule['allowEmpty'] ?? [], true)) {
+                if (!is_string($extra[$field] ?? null)) {
+                    throw new RequestException("sdk: extra.{$field} must be a string for {$currency} {$code}");
+                }
+                continue;
+            }
             if (self::isEmptyValue($extra[$field] ?? null)) {
                 throw new RequestException(
                     "sdk: required extra field is empty: extra.{$field} for {$currency} {$code}"
                 );
+            }
+        }
+        foreach ($optionalNullableStrings as $field) {
+            $value = $extra[$field] ?? null;
+            if ($value !== null && !is_string($value)) {
+                throw new RequestException("sdk: extra.{$field} must be a string or null for {$currency} {$code}");
             }
         }
     }

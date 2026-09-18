@@ -6,7 +6,7 @@ or the sealed-box envelope themselves.
 
 ## Protocol
 
-[`protocol/`](protocol/) is the cross-language source of truth; the Go,
+[`protocol/`](https://github.com/joogopay/sdk-php/tree/main/protocol/) is the cross-language source of truth; the Go,
 JavaScript, PHP, Python and Java SDKs share one set of test vectors:
 
 | Item | Approach |
@@ -80,15 +80,15 @@ echo $order['orderNo'], ' ', $order['status'], ' ', $order['action']['url'] ?? '
 | --- | --- | --- |
 | `RequestException` | Rejected **before it was sent** (local validation, a bad parameter, or a request the SDK could not encode or sign) | Safe to mark failed; fix the request and retry under the same `merchantOrderNo` |
 | `TransportException` | Handed to the transport, no usable response (connection failure, timeout, interrupted read) | Outcome unknown; **never mark a payout failed**. Query by `merchantOrderNo`, or resend the identical request under the same number |
-| `ApiException` | The gateway returned a business error (`$e->msg` / `$e->apiMessage` / `$e->traceId`) | Branch on `msg`. `IDEMPOTENCY_CONFLICT`: the number is already in flight, query it and keep querying rather than switching numbers. `CHANNEL_ERROR`: the order may already exist, query by `merchantOrderNo` first |
+| `ApiException` | The gateway returned a business error (`$e->msg` / `$e->apiMessage` / `$e->traceId`) | Branch on `msg`. `IDEMPOTENCY_CONFLICT`: the number is taken but the platform could not return its order, query that number and keep querying rather than switching numbers. `CHANNEL_ERROR`: the order may already exist, query by `merchantOrderNo` first and reuse that number only once the query returns `ORDER_NOT_FOUND`. `CHANNEL_BUSY`: refused before the order was created, so resend the same number after a back-off; this is the only channel error that needs no query first |
 | `ResponseException` | The gateway or CDN returned something that is not an envelope (HTML 502, ...) | Outcome unknown; query before deciding |
 | `ResponseTooLargeException` | A response arrived but exceeded the size limit and was discarded | Outcome unknown; the order was most likely created, query before deciding |
 | Anything else | An unexpected error; assume the request may have arrived | Outcome unknown; query before deciding |
 
 **`merchantOrderNo` is the only key that prevents a duplicate order.** A second
 create with the same number never creates a second order: the platform answers
-with the original order, or with `IDEMPOTENCY_CONFLICT` while the first one is
-still being placed. The idempotency key travels with the request for tracing and
+with the original order, or with `IDEMPOTENCY_CONFLICT` when it recognises the
+number as taken but cannot return that order. The idempotency key travels with the request for tracing and
 is **not** a deduplication key.
 
 Two rules follow:
@@ -102,7 +102,7 @@ Two rules follow:
 
 The SDK validates locally before signing (top-level required fields and formats,
 method shape and required extras); the rules are defined in
-[`protocol/merchant-api.md`](protocol/merchant-api.md#client-side-validation).
+[`protocol/merchant-api.md`](https://github.com/joogopay/sdk-php/blob/main/protocol/merchant-api.md#client-side-validation).
 Format checks (phone length, e-mail, ...) stay with the gateway on purpose, so
 the SDK never drifts from it.
 
@@ -111,8 +111,8 @@ the SDK never drifts from it.
 Queries, idempotent retries and the full webhook flow are covered by the platform
 documentation at <https://docs.joogopay.com>; its examples map one to one onto this
 SDK. The wire protocol is in
-[`protocol/webhook.md`](protocol/webhook.md) and
-[`protocol/merchant-api.md`](protocol/merchant-api.md). Key points:
+[`protocol/webhook.md`](https://github.com/joogopay/sdk-php/blob/main/protocol/webhook.md) and
+[`protocol/merchant-api.md`](https://github.com/joogopay/sdk-php/blob/main/protocol/merchant-api.md). Key points:
 
 - After a create times out, query by `merchantOrderNo` before sending anything
   new; a deliberate retry repeats the same call with the same `merchantOrderNo`.
@@ -148,6 +148,6 @@ php tests/run.php
 ```
 
 The tests assert directly against the vectors in
-[`protocol/testdata`](protocol/testdata/): `Signature-Input`, the signature
+[`protocol/testdata`](https://github.com/joogopay/sdk-php/tree/main/protocol/testdata/): `Signature-Input`, the signature
 base and the signature value are compared byte for byte, and body encryption is
 verified by decrypting ciphertext produced by the reference implementation.

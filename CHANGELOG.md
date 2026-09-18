@@ -2,12 +2,30 @@
 
 Versions follow SemVer. Tags are `vX.Y.Z` on this repository.
 
+## v0.1.2 — 2026-09-18
+
+- Needs a platform that accepts an omitted or `null` ARS `address` (platform
+  release of 2026-09-18); against an earlier platform, send `address` as a string.
+- ARS `BANK_TRANSFER` payout `address` is optional. Omitted, `null` and empty
+  strings mean no address; non-empty strings are preserved. Other value types
+  are rejected before sending. The other eight recipient fields remain required,
+  and other currencies and methods retain their existing rules.
+- USD payments accept `CASH_APP` only; USD payouts accept `CASH_APP`, `PAYPAL`
+  and `CHIME`. Each carries its own extra field and required set, checked before
+  the request goes out; earlier versions had no USD rules and passed every USD
+  request through to the gateway.
+- Documentation: the constructor docblock explains each config key;
+  `IDEMPOTENCY_CONFLICT` and `CHANNEL_BUSY` handling in the error table; the `protocol/` links in the README are absolute so they resolve on the package page.
+
 ## v0.1.1 — 2026-09-14
 
 - Fixed: none of the exception classes could be autoloaded. They all live in one
   file, which PSR-4 never finds because it resolves a class to a file of the same
   name, so any thrown exception became a fatal "class not found" instead. The
   package now ships a classmap entry for that file.
+- Indonesia wallet payouts (`ID_DANA` / `ID_OVO` / `ID_GOPAY` / `ID_LINKAJA` /
+  `ID_SHOPEEPAY`) validate under their own extra field (`idDana`, `idOvo`, ...),
+  same shape as `idBankTransfer`. No API change.
 
 ## v0.1.0 — 2026-09-14
 

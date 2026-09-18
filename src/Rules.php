@@ -24,6 +24,7 @@ final class Rules
         'BREB' => 'breb',
         'CASH' => 'cash',
         'CASH_APP' => 'cashApp',
+        'CHIME' => 'chime',
         'CREDIT_CARD' => 'creditCard',
         'CVU' => 'cvu',
         'E_WALLET' => 'eWallet',
@@ -46,6 +47,7 @@ final class Rules
         'PAGO46' => 'pago46',
         'PAGO_FACIL' => 'pagoFacil',
         'PAPARA' => 'papara',
+        'PAYPAL' => 'paypal',
         'PH_DF_BANK' => 'phDfBank',
         'PH_DF_WALLET' => 'phDfWallet',
         'PH_GCASH' => 'phGcash',
@@ -92,10 +94,11 @@ final class Rules
         'PHP' => ['codes' => ['PH_GCASH', 'PH_GCASH_QR', 'PH_GRAB', 'PH_MAYA', 'PH_MAYA_QR', 'PH_NATIVE_GCASH', 'PH_QRIS'], 'required' => [], 'byMethod' => []],
         'PKR' => ['codes' => ['PK_EASYPAISA', 'PK_EASYPAISA_QRPH', 'PK_JAZZCASH', 'PK_JAZZCASH_QRPH'], 'required' => [], 'byMethod' => []],
         'TRY' => ['codes' => [], 'required' => ['customerName'], 'byMethod' => []],
+        'USD' => ['codes' => ['CASH_APP'], 'required' => ['name', 'phone', 'email', 'ipAddress'], 'byMethod' => []],
     ];
 
     public const PAYOUT_METHOD_RULES = [
-        'ARS' => ['codes' => [], 'required' => ['accountNo', 'accountType', 'address', 'documentNumber', 'documentType', 'email', 'firstName', 'lastName', 'phone'], 'byMethod' => []],
+        'ARS' => ['codes' => [], 'required' => ['accountNo', 'accountType', 'documentNumber', 'documentType', 'email', 'firstName', 'lastName', 'phone'], 'byMethod' => [], 'optionalNullableStringsByMethod' => ['BANK_TRANSFER' => ['address']]],
         'BDT' => ['codes' => ['BD_BKASH', 'BD_NAGAD'], 'required' => ['accountName', 'accountNo', 'email', 'mobile'], 'byMethod' => []],
         'BRL' => ['codes' => [], 'required' => ['key', 'keyType'], 'byMethod' => []],
         'CLP' => ['codes' => [], 'required' => ['accountName', 'accountNo', 'accountType', 'bankCode', 'customerEmail', 'customerPhone', 'documentNumber', 'documentType'], 'byMethod' => []],
@@ -107,6 +110,7 @@ final class Rules
         'PHP' => ['codes' => ['PH_DF_BANK', 'PH_DF_WALLET'], 'required' => ['accountName', 'accountNo', 'bankCode', 'email', 'mobile'], 'byMethod' => []],
         'PKR' => ['codes' => ['PK_BANK', 'PK_EASYPAISA', 'PK_JAZZCASH'], 'required' => ['accountNo', 'cnic', 'mobile'], 'byMethod' => ['PK_BANK' => ['bankCode']]],
         'TRY' => ['codes' => [], 'required' => ['accountName', 'accountNo'], 'byMethod' => ['BANK_TRANSFER' => ['bankCode', 'bankName']]],
+        'USD' => ['codes' => ['CASH_APP', 'PAYPAL', 'CHIME'], 'required' => ['name', 'phone', 'email', 'accountNo', 'firstName', 'lastName', 'dateOfBirth', 'countryOfResidence', 'stateOfResidence', 'cardCity', 'cardStreet', 'cardPostCode'], 'byMethod' => []],
     ];
 
 }
