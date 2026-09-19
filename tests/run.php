@@ -1038,6 +1038,29 @@ foreach ([$usdWallets['payment'], ...$usdWallets['payouts']] as $request) {
 }
 
 
+// PH wallets: one code per wallet in both directions; bankCode only for the bank transfer
+test('validation: PHP wallet payouts', function () use ($transport, &$nextResponse) {
+    $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
+    $client = makeClient($transport);
+    $extra = fn () => ['accountNo' => '09171234567', 'accountName' => 'Juan',
+        'email' => 'j@example.com', 'mobile' => '09171234567'];
+    $payout = fn (array $m) => [
+        'merchantOrderNo' => 'M1', 'currency' => 'PHP', 'amount' => '100.00',
+        'payoutMethod' => $m, 'webhookUrl' => 'https://m.example.com/w',
+    ];
+
+    foreach ([['PH_GCASH', 'phGcash'], ['PH_MAYA', 'phMaya']] as [$code, $field]) {
+        $client->createPayout($payout(['code' => $code, $field => $extra()]));
+    }
+
+    // PH_DF_WALLET is kept for existing integrations; there bankCode names the wallet.
+    foreach ([['PH_DF_BANK', 'phDfBank'], ['PH_DF_WALLET', 'phDfWallet']] as [$code, $field]) {
+        throws(RequestException::class,
+            fn () => $client->createPayout($payout(['code' => $code, $field => $extra()])),
+            $code . ' without bankCode');
+    }
+});
+
 echo "\n";
 if ($failed === []) {
     echo "  {$passed} passed\n";
