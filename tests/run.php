@@ -591,6 +591,8 @@ test('response vector 001: success', function () use ($transport, &$nextResponse
     eq($order['orderNo'], 'ORD202605190001');
     eq($order['status'], Status::SUCCEEDED);
     eq($order['action']['qrCode'], '00020-qr');
+    eq($order['payer']['name'], 'Maria Silva');
+    eq($order['payer']['documentNumber'], '01234567890');
 });
 
 test('response vector 002: business error becomes ApiException', function () use ($transport, &$nextResponse) {
@@ -671,7 +673,54 @@ test('parses a payment webhook', function () use ($transport, $HOOK) {
     eq($hook['status'], Status::SUCCEEDED);
     eq($hook['amount'], '100.50');
     eq($hook['paidAmount'], '100.50');
+    ok(!array_key_exists('payer', $hook));
 });
+
+test('parses channel-reported payer in a signed payment webhook', function () use ($transport) {
+    $vector = load('webhook/002-payment-payer.json');
+    $hook = makeClient($transport, [
+        'now' => fn () => 1787803300,
+        'platformWebhookPublicKeys' => [
+            $vector['key']['platformWebhookKeyId'] => $vector['key']['platformWebhookPublicKeyBase64'],
+        ],
+    ])->parsePaymentWebhook(
+        $vector['input']['method'],
+        $vector['input']['path'],
+        $vector['headers'],
+        $vector['body'],
+        $vector['input']['rawQuery']
+    );
+    eq($hook['payer'], ['name' => 'Maria Silva', 'documentNumber' => '01234567890']);
+    eq($hook['amount'], '100.50');
+    eq($hook['paidAmount'], '100.50');
+});
+
+foreach (['name', 'documentNumber'] as $field) {
+    foreach ([false, true] as $refreshDigest) {
+        test('payment webhook rejects altered payer.' . $field . ', refreshed digest=' . (int) $refreshDigest,
+            function () use ($transport, $field, $refreshDigest) {
+                $vector = load('webhook/002-payment-payer.json');
+                $payload = json_decode($vector['body'], true, 512, JSON_THROW_ON_ERROR);
+                $payload['payer'][$field] = $field === 'name' ? 'Other Name' : '11234567890';
+                $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                $headers = $vector['headers'];
+                if ($refreshDigest) {
+                    $headers['Content-Digest'] = P::contentDigestSha256($body);
+                }
+                $client = makeClient($transport, [
+                    'now' => fn () => 1787803300,
+                    'platformWebhookPublicKeys' => [
+                        $vector['key']['platformWebhookKeyId'] => $vector['key']['platformWebhookPublicKeyBase64'],
+                    ],
+                ]);
+                throws($refreshDigest ? InvalidSignatureException::class : WebhookException::class,
+                    fn () => $client->parsePaymentWebhook(
+                        $vector['input']['method'], $vector['input']['path'], $headers, $body,
+                        $vector['input']['rawQuery']
+                    ));
+            });
+    }
+}
 
 test('webhook rejects an unknown keyId', function () use ($transport, $HOOK) {
     $client = makeClient($transport, [
@@ -906,8 +955,9 @@ test('a malformed idempotency key is a RequestException and nothing is sent', fu
 test('validation: IDR wallet payouts', function () use ($transport, &$nextResponse) {
     $nextResponse = ['status' => 200, 'body' => '{"code":200,"msg":"OK","data":{}}'];
     $client = makeClient($transport);
-    $extra = fn (string $wallet) => ['bankCode' => $wallet, 'accountName' => 'Budi',
-        'email' => 'b@example.com', 'mobile' => '081234567890'];
+    // accountNo is the wallet-registered phone number and receives the funds; mobile is a contact number.
+    $extra = fn (string $wallet) => ['bankCode' => $wallet, 'accountNo' => '081234567890', 'accountName' => 'Budi',
+        'email' => 'b@example.com', 'mobile' => '089999999999'];
     $payout = fn (array $m) => [
         'merchantOrderNo' => 'M1', 'currency' => 'IDR', 'amount' => '10000',
         'payoutMethod' => $m, 'webhookUrl' => 'https://m.example.com/w',
@@ -921,6 +971,10 @@ test('validation: IDR wallet payouts', function () use ($transport, &$nextRespon
     throws(RequestException::class,
         fn () => $client->createPayout($payout(['code' => 'ID_DANA', 'idOvo' => $extra('OVO')])),
         'wallet extra under another wallet field');
+    // accountNo is required for wallets as well; mobile never stands in for it.
+    throws(RequestException::class,
+        fn () => $client->createPayout($payout(['code' => 'ID_DANA', 'idDana' => ['accountNo' => ''] + $extra('DANA')])),
+        'wallet without accountNo');
 });
 // Top-level required fields and formats come from the shared vectors under protocol/testdata/validation;
 // a failure here means PHP disagrees with the protocol, not that the vector is wrong.
