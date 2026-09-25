@@ -1115,6 +1115,23 @@ test('validation: PHP wallet payouts', function () use ($transport, &$nextRespon
     }
 });
 
+test('payout refund query and signed webhook retain fields', function () use ($transport, &$nextResponse) {
+    $response = load('responses/005-payout-refunded.json');
+    $nextResponse = ['status' => $response['httpStatus'], 'body' => json_encode($response['body'])];
+    $order = makeClient($transport)->queryPayoutByOrderNo('PO202609240001');
+    $v = load('webhook/003-payout-refunded.json');
+    $hook = makeClient($transport, [
+        'now' => fn () => 1787803300,
+        'platformWebhookPublicKeys' => [$v['key']['platformWebhookKeyId'] => $v['key']['platformWebhookPublicKeyBase64']],
+    ])->parsePayoutWebhook($v['input']['method'], $v['input']['path'], $v['headers'], $v['body'], $v['input']['rawQuery']);
+    foreach ([$order, $hook] as $payload) {
+        eq($payload['status'], Status::REFUNDED);
+        eq($payload['refundNo'], 'R202609240001');
+        eq($payload['refundAmount'], '100.00');
+        eq($payload['refundTime'], 1790208000000);
+    }
+});
+
 echo "\n";
 if ($failed === []) {
     echo "  {$passed} passed\n";

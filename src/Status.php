@@ -17,11 +17,12 @@ final class Status
     public const FAILED = 'FAILED';
     public const EXPIRED = 'EXPIRED';
     public const CANCELED = 'CANCELED';
+    public const REFUNDED = 'REFUNDED';
 
-    /** The six external statuses shared by the API, webhooks and hosted checkout; PAID, CREATED and EXCEPTION are retired. */
+    /** Public order statuses. REFUNDED is payout-only; checkout progress is unchanged. */
     public const ALL = [
         self::PENDING, self::PROCESSING, self::SUCCEEDED,
-        self::FAILED, self::EXPIRED, self::CANCELED,
+        self::FAILED, self::EXPIRED, self::CANCELED, self::REFUNDED,
     ];
 
     public const WEBHOOK_ORDER_TYPE_PAYMENT = 'PAYMENT';
@@ -29,7 +30,7 @@ final class Status
 
     /** Public money fields; each one is a decimal string, never a float. */
     public const MONEY_FIELDS = [
-        'amount', 'paidAmount', 'minAmount', 'maxAmount', 'usdRate',
+        'amount', 'paidAmount', 'refundAmount', 'minAmount', 'maxAmount', 'usdRate',
         'balance', 'lockBalance', 'paymentBalance', 'paymentLockBalance',
         'payoutBalance', 'payoutLockBalance',
     ];
